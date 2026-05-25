@@ -1,0 +1,34 @@
+# Arithmatic operators
+
+a = 10
+b = 3
+
+print("a + b =", a + b) # addition
+print("a - b =", a - b) # subtraction
+print("a * b =", a * b) # multiplication
+print("a / b =", a / b) # division
+print("a % b =", a % b) # modulus
+print("a // b =", a // b) # floor division
+print("a ** b =", a ** b) # exponentiation
+
+# Assignment operators
+c = 10
+c += 5 # c = c + 5, so it means increment value of c by 5 and then assign it to c
+print("c =", c)
+
+# Comparison operators , answer is always boolean
+print("a == b:", a == b) # equal to
+print("a != b:", a != b) # not equal to
+print("a > b:", a > b) # greater than
+print("a < b:", a < b) # less than
+print("a >= b:", a >= b) # greater than or equal to
+print("a <= b:", a <= b) # less than or equal to
+
+
+# Logical operators
+x = True
+y = False
+print("x and y:", x and y) # logical AND
+print("x or y:", x or y) # logical OR
+print("not x:", not x) # logical NOT
+
