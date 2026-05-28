@@ -1,4 +1,4 @@
-print("Hello Hamyy 👋")
+print("Hello")
 
 # comments for python code 
 """
@@ -11,5 +11,5 @@ b = 20
 c = "harry"
 
 print (a + b)
-# sum of integer nd string will give error
+# print (a + c) , sum of integer and string will give error
 

@@ -26,9 +26,11 @@ print("a <= b:", a <= b) # less than or equal to
 
 
 # Logical operators
-x = True
-y = False
-print("x and y:", x and y) # logical AND
+# and operator returns True if both operands are true
+# if one of the operand is false then it returns false
+x = 1
+y = "hammad"
+print("x and y:", x and y)# logical AND
 print("x or y:", x or y) # logical OR
 print("not x:", not x) # logical NOT
 
