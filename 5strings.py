@@ -31,5 +31,21 @@ print(name[0:6:2]) # this will give 'hmd', 0 to 6 with step of 2
 print(name[::2]) # this will also give 'hmd', start to end with
 
 # /////////////////////////////////////////////////////////////////////////////////////////////////////////
-# STRING FNCTIONS 
+# STRING FUNCTIONS 
 # (2) 
+A =  " Muhammad Hammad Azam is the best of all the programmers in the world"
+B = A.upper() # this will convert the string to upper case
+C = A.lower() # this will convert the string to lower case
+D = A.capitalize() # this will convert the first character to upper case and rest to lower case
+E = A.title() # this will convert the first character of each word to upper case and rest to lower case
+
+print( B, C, D, E )
+
+f = A.replace("Hammad", "Ali") # this will replace the first occurrence of "Hammad" with "Ali"
+print(f)
+
+g = A.count("Hammad") # this will count the number of occurrences of "Hammad" in the string
+print(g) 
+
+h = A.find("Hammad") # this will return the index of the first occurrence of "Hammad" in the string
+print(h)
