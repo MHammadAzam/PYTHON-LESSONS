@@ -34,3 +34,7 @@ print("x and y:", x and y)# logical AND
 print("x or y:", x or y) # logical OR
 print("not x:", not x) # logical NOT
 
+
+str =  input("whats ur name")
+
+print("Hello " + str + " welcome to python programming")
