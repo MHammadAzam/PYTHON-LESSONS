@@ -38,3 +38,9 @@ print("not x:", not x) # logical NOT
 str =  input("whats ur name")
 
 print("Hello " + str + " welcome to python programming")
+
+z = 25/4
+print ( z ) # answer is 6.25
+
+z1 = 25//4
+print ( z1 ) # answer is 6, it rounds down the value to nearest integer

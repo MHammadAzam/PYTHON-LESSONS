@@ -18,7 +18,7 @@ print(nameshort)
 #  h  a  m  m  a  d
 #  0  1  2  3  4  5
 # -6 -5 -4 -3 -2 -1
-nameshort1 = name[-5:-1] # this will give 'hamma'
+nameshort1 = name[-5:-1] # this will give 'amma'
 print(nameshort1)
 
 print(name[0:]) # this will give the whole string, 0 to end
