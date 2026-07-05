@@ -19,3 +19,11 @@ print(type(c)) # <class 'str'>
 d = int(b) # typecasting float to int
 print(d) # 3
 print(type(d)) # <class 'int'>
+
+
+name = True
+print(name)
+print(type(name))
+
+integ = str(name)
+print(integ) # 'True'
