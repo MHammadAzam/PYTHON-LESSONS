@@ -1,0 +1,1351 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CryptoVault Live Markets</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+
+    <script>
+      const { useEffect, useMemo, useState } = React;
+      const el = React.createElement;
+      const apiBase = "https://api.coingecko.com/api/v3";
+      const refreshSeconds = 60;
+
+      const fallbackCoins = [
+        {
+          id: "bitcoin",
+          symbol: "btc",
+          name: "Bitcoin",
+          image: "https://assets.coingecko.com/coins/images/1/large/bitcoin.png",
+          current_price: 68420,
+          market_cap: 1340000000000,
+          total_volume: 36000000000,
+          price_change_percentage_24h: 2.4,
+          price_change_percentage_7d_in_currency: 6.1,
+          circulating_supply: 19680000,
+          ath: 73738,
+          sparkline_in_7d: { price: [64100, 65300, 64800, 66200, 67100, 66500, 68420] },
+        },
+        {
+          id: "ethereum",
+          symbol: "eth",
+          name: "Ethereum",
+          image: "https://assets.coingecko.com/coins/images/279/large/ethereum.png",
+          current_price: 3840,
+          market_cap: 461000000000,
+          total_volume: 18400000000,
+          price_change_percentage_24h: 1.8,
+          price_change_percentage_7d_in_currency: 4.5,
+          circulating_supply: 120100000,
+          ath: 4878,
+          sparkline_in_7d: { price: [3610, 3690, 3660, 3770, 3810, 3740, 3840] },
+        },
+        {
+          id: "solana",
+          symbol: "sol",
+          name: "Solana",
+          image: "https://assets.coingecko.com/coins/images/4128/large/solana.png",
+          current_price: 152.3,
+          market_cap: 70300000000,
+          total_volume: 3900000000,
+          price_change_percentage_24h: 4.9,
+          price_change_percentage_7d_in_currency: 12.2,
+          circulating_supply: 462000000,
+          ath: 259.96,
+          sparkline_in_7d: { price: [132, 138, 136, 145, 149, 143, 152.3] },
+        },
+      ];
+
+      const styles = `
+        :root {
+          color-scheme: dark;
+          --bg: #050505;
+          --panel: rgba(10, 10, 10, 0.88);
+          --panel-soft: rgba(255, 248, 220, 0.06);
+          --line: rgba(230, 185, 65, 0.24);
+          --gold: #f5c84c;
+          --gold-2: #b8821b;
+          --text: #fff7df;
+          --muted: #c8b985;
+          --green: #54d88f;
+          --red: #ff6b6b;
+          --blue: #65b7ff;
+        }
+
+        * { box-sizing: border-box; }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+          margin: 0;
+          font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          background: var(--bg);
+        }
+
+        button,
+        input,
+        select {
+          font: inherit;
+        }
+
+        button {
+          border: 0;
+          border-radius: 8px;
+          min-height: 42px;
+          background: linear-gradient(135deg, #ffe082, var(--gold-2));
+          color: #0b0802;
+          cursor: pointer;
+          font-weight: 850;
+          padding: 10px 15px;
+          transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+        }
+
+        button:hover { transform: translateY(-1px); }
+        button:disabled { cursor: not-allowed; opacity: 0.6; transform: none; }
+
+        button.secondary,
+        button.ghost {
+          background: rgba(255, 247, 223, 0.08);
+          border: 1px solid rgba(245, 200, 76, 0.36);
+          color: #f8dc88;
+        }
+
+        button.ghost {
+          background: transparent;
+          color: var(--text);
+        }
+
+        button.icon {
+          display: inline-grid;
+          width: 38px;
+          min-height: 38px;
+          place-items: center;
+          padding: 0;
+        }
+
+        input,
+        select {
+          width: 100%;
+          min-height: 42px;
+          border: 1px solid rgba(245, 200, 76, 0.26);
+          border-radius: 8px;
+          background: rgba(0, 0, 0, 0.36);
+          color: var(--text);
+          outline: 0;
+          padding: 10px 12px;
+        }
+
+        select option {
+          background: #12100a;
+          color: var(--text);
+        }
+
+        a {
+          color: #fff4cf;
+          text-decoration: none;
+          font-weight: 700;
+        }
+
+        .app {
+          min-height: 100vh;
+          color: var(--text);
+          background:
+            radial-gradient(circle at 88% 3%, rgba(212, 175, 55, 0.2), transparent 27rem),
+            radial-gradient(circle at 8% 28%, rgba(101, 183, 255, 0.11), transparent 22rem),
+            linear-gradient(135deg, #030303 0%, #10100d 47%, #261d07 100%);
+          padding: 22px;
+        }
+
+        .shell {
+          max-width: 1440px;
+          margin: 0 auto;
+        }
+
+        .nav {
+          position: sticky;
+          top: 0;
+          z-index: 20;
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 20px;
+          padding: 16px 0;
+          backdrop-filter: blur(18px);
+        }
+
+        .brand {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          min-width: 210px;
+        }
+
+        .brand-mark {
+          display: grid;
+          width: 42px;
+          height: 42px;
+          place-items: center;
+          border: 1px solid rgba(245, 200, 76, 0.42);
+          border-radius: 8px;
+          background: linear-gradient(145deg, #f5c84c, #6f4c08);
+          color: #060501;
+          font-weight: 950;
+        }
+
+        .brand h1,
+        .brand p {
+          margin: 0;
+        }
+
+        .brand h1 {
+          color: var(--gold);
+          font-size: 1.12rem;
+        }
+
+        .brand p {
+          color: var(--muted);
+          font-size: 0.78rem;
+        }
+
+        .nav-links {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 18px;
+          flex: 1;
+        }
+
+        .nav-actions {
+          display: flex;
+          align-items: center;
+          justify-content: flex-end;
+          gap: 10px;
+        }
+
+        .hero {
+          display: grid;
+          grid-template-columns: minmax(0, 1.08fr) minmax(340px, 0.92fr);
+          gap: 22px;
+          min-height: 520px;
+          padding-top: 6px;
+        }
+
+        .hero-main {
+          position: relative;
+          display: flex;
+          min-height: 520px;
+          flex-direction: column;
+          justify-content: space-between;
+          overflow: hidden;
+          border: 1px solid var(--line);
+          border-radius: 8px;
+          background:
+            linear-gradient(135deg, rgba(0, 0, 0, 0.86), rgba(43, 32, 7, 0.58)),
+            url("https://images.unsplash.com/photo-1621761191319-c6fb62004040?auto=format&fit=crop&w=1800&q=80");
+          background-position: center;
+          background-size: cover;
+          box-shadow: 0 24px 80px rgba(0, 0, 0, 0.44);
+          padding: 34px;
+        }
+
+        .hero-main::after {
+          position: absolute;
+          inset: auto 28px 28px auto;
+          width: 230px;
+          height: 230px;
+          border: 1px solid rgba(245, 200, 76, 0.28);
+          border-radius: 50%;
+          content: "";
+          opacity: 0.7;
+        }
+
+        .eyebrow {
+          margin: 0 0 12px;
+          color: var(--gold);
+          font-size: 0.78rem;
+          font-weight: 850;
+          letter-spacing: 0;
+          text-transform: uppercase;
+        }
+
+        .hero h2 {
+          position: relative;
+          z-index: 1;
+          max-width: 780px;
+          margin: 0;
+          font-size: clamp(2.7rem, 5.4vw, 5.6rem);
+          line-height: 0.94;
+        }
+
+        .hero-copy {
+          position: relative;
+          z-index: 1;
+          max-width: 610px;
+          color: #e9d9a8;
+          font-size: 1.06rem;
+          line-height: 1.75;
+        }
+
+        .hero-actions,
+        .tabs,
+        .field-row,
+        .status-row,
+        .table-actions,
+        .card-actions {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+
+        .hero-metrics {
+          position: relative;
+          z-index: 1;
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 12px;
+        }
+
+        .metric,
+        .panel,
+        .market-card,
+        .modal {
+          border: 1px solid var(--line);
+          border-radius: 8px;
+          background: var(--panel);
+          box-shadow: 0 18px 50px rgba(0, 0, 0, 0.3);
+        }
+
+        .metric {
+          padding: 16px;
+          backdrop-filter: blur(12px);
+        }
+
+        .metric span,
+        .label,
+        .table th {
+          color: var(--muted);
+          font-size: 0.82rem;
+          font-weight: 750;
+        }
+
+        .metric strong {
+          display: block;
+          margin-top: 8px;
+          color: #ffde78;
+          font-size: 1.45rem;
+        }
+
+        .side-stack {
+          display: grid;
+          gap: 18px;
+        }
+
+        .panel {
+          padding: 20px;
+        }
+
+        .panel-header {
+          display: flex;
+          align-items: flex-start;
+          justify-content: space-between;
+          gap: 14px;
+          margin-bottom: 16px;
+        }
+
+        .panel-header h3,
+        .section-title h3,
+        .coin-name h4 {
+          margin: 0;
+        }
+
+        .panel-header p,
+        .section-title p {
+          margin: 5px 0 0;
+          color: var(--muted);
+          line-height: 1.5;
+        }
+
+        .featured-coin {
+          display: grid;
+          grid-template-columns: auto 1fr;
+          gap: 14px;
+          align-items: center;
+        }
+
+        .coin-logo {
+          width: 48px;
+          height: 48px;
+          border-radius: 50%;
+          background: rgba(255, 255, 255, 0.08);
+        }
+
+        .price-line {
+          display: flex;
+          align-items: baseline;
+          justify-content: space-between;
+          gap: 10px;
+          margin-top: 14px;
+        }
+
+        .price-line strong {
+          color: #ffde78;
+          font-size: 2rem;
+        }
+
+        .change {
+          color: var(--green);
+          font-weight: 850;
+        }
+
+        .change.negative {
+          color: var(--red);
+        }
+
+        .spark {
+          width: 100%;
+          height: 90px;
+          margin-top: 16px;
+        }
+
+        .quick-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 12px;
+        }
+
+        .quick-card {
+          border: 1px solid rgba(245, 200, 76, 0.18);
+          border-radius: 8px;
+          background: var(--panel-soft);
+          padding: 14px;
+        }
+
+        .quick-card strong {
+          display: block;
+          margin-top: 6px;
+          color: #ffde78;
+        }
+
+        .section {
+          margin-top: 22px;
+        }
+
+        .section-title {
+          display: flex;
+          align-items: flex-end;
+          justify-content: space-between;
+          gap: 16px;
+          margin-bottom: 14px;
+        }
+
+        .section-title h3 {
+          font-size: 1.5rem;
+        }
+
+        .dashboard-grid {
+          display: grid;
+          grid-template-columns: 1fr 340px;
+          gap: 22px;
+        }
+
+        .market-card {
+          overflow: hidden;
+        }
+
+        .toolbar {
+          display: grid;
+          grid-template-columns: minmax(240px, 1.3fr) repeat(3, minmax(150px, 0.6fr)) auto;
+          gap: 10px;
+          padding: 16px;
+          border-bottom: 1px solid var(--line);
+        }
+
+        .tabs {
+          padding: 0 16px 16px;
+        }
+
+        .tabs button.active,
+        .timeframe button.active {
+          background: rgba(245, 200, 76, 0.18);
+          border: 1px solid rgba(245, 200, 76, 0.56);
+          color: #ffe082;
+        }
+
+        .status-row {
+          justify-content: space-between;
+          padding: 0 16px 14px;
+          color: var(--muted);
+          font-size: 0.9rem;
+        }
+
+        .table-wrap {
+          overflow-x: auto;
+        }
+
+        .table {
+          width: 100%;
+          min-width: 920px;
+          border-collapse: collapse;
+        }
+
+        .table th,
+        .table td {
+          padding: 14px 16px;
+          border-top: 1px solid rgba(245, 200, 76, 0.12);
+          text-align: right;
+          white-space: nowrap;
+        }
+
+        .table th:first-child,
+        .table td:first-child,
+        .table th:nth-child(2),
+        .table td:nth-child(2) {
+          text-align: left;
+        }
+
+        .coin-cell {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+
+        .coin-cell img {
+          width: 34px;
+          height: 34px;
+          border-radius: 50%;
+        }
+
+        .coin-name span {
+          color: var(--muted);
+          font-size: 0.82rem;
+          font-weight: 800;
+          text-transform: uppercase;
+        }
+
+        .mini-spark {
+          width: 128px;
+          height: 44px;
+        }
+
+        .table-footer {
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 16px;
+        }
+
+        .portfolio-list,
+        .watch-list,
+        .news-list {
+          display: grid;
+          gap: 10px;
+        }
+
+        .holding,
+        .watch-item,
+        .news-item {
+          border: 1px solid rgba(245, 200, 76, 0.16);
+          border-radius: 8px;
+          background: var(--panel-soft);
+          padding: 12px;
+        }
+
+        .holding {
+          display: grid;
+          grid-template-columns: 1fr auto;
+          gap: 10px;
+        }
+
+        .holding small,
+        .watch-item small,
+        .news-item small {
+          color: var(--muted);
+        }
+
+        .watch-item {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+        }
+
+        .converter-result {
+          border: 1px solid rgba(84, 216, 143, 0.22);
+          border-radius: 8px;
+          background: rgba(84, 216, 143, 0.08);
+          color: #d6ffe5;
+          font-weight: 850;
+          padding: 14px;
+        }
+
+        .empty {
+          color: var(--muted);
+          line-height: 1.55;
+        }
+
+        .modal-backdrop {
+          position: fixed;
+          inset: 0;
+          z-index: 50;
+          display: grid;
+          place-items: center;
+          background: rgba(0, 0, 0, 0.7);
+          padding: 18px;
+        }
+
+        .modal {
+          width: min(520px, 100%);
+          padding: 22px;
+        }
+
+        .modal h3 {
+          margin: 0 0 8px;
+        }
+
+        .modal p {
+          color: var(--muted);
+          line-height: 1.55;
+        }
+
+        .wallet-card {
+          display: grid;
+          gap: 6px;
+          margin-top: 12px;
+          overflow: hidden;
+          border: 1px solid rgba(245, 200, 76, 0.2);
+          border-radius: 8px;
+          background: rgba(255, 247, 223, 0.06);
+          padding: 14px;
+        }
+
+        .wallet-card strong {
+          color: #ffde78;
+          font-size: 1.08rem;
+        }
+
+        .wallet-card small {
+          overflow: hidden;
+          color: var(--muted);
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+
+        .wallet-options {
+          display: grid;
+          grid-template-columns: 1fr auto;
+          gap: 10px;
+          align-items: center;
+          margin: 18px 0;
+        }
+
+        .wallet-link {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          min-height: 42px;
+          border: 1px solid rgba(245, 200, 76, 0.36);
+          border-radius: 8px;
+          padding: 10px 14px;
+        }
+
+        .toast {
+          position: fixed;
+          right: 20px;
+          bottom: 20px;
+          z-index: 60;
+          max-width: 360px;
+          border: 1px solid rgba(245, 200, 76, 0.34);
+          border-radius: 8px;
+          background: #12100a;
+          color: var(--text);
+          padding: 14px 16px;
+          box-shadow: 0 18px 40px rgba(0, 0, 0, 0.38);
+        }
+
+        .risk-list {
+          margin: 0;
+          padding-left: 18px;
+          color: var(--muted);
+          line-height: 1.7;
+        }
+
+        @media (max-width: 1120px) {
+          .hero,
+          .dashboard-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .toolbar {
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+          }
+        }
+
+        @media (max-width: 760px) {
+          .app {
+            padding: 14px;
+          }
+
+          .nav,
+          .section-title,
+          .price-line {
+            align-items: flex-start;
+            flex-direction: column;
+          }
+
+          .nav-links {
+            justify-content: flex-start;
+            order: 3;
+            width: 100%;
+            overflow-x: auto;
+            padding-bottom: 4px;
+          }
+
+          .hero-main {
+            min-height: 560px;
+            padding: 24px;
+          }
+
+          .hero-metrics,
+          .quick-grid,
+          .toolbar {
+            grid-template-columns: 1fr;
+          }
+
+          .wallet-options {
+            grid-template-columns: 1fr;
+          }
+        }
+      `;
+
+      function formatCurrency(value, compact = false) {
+        if (!Number.isFinite(value)) return "-";
+        return new Intl.NumberFormat("en-US", {
+          style: "currency",
+          currency: "USD",
+          maximumFractionDigits: value > 1000 || compact ? 0 : 4,
+          notation: compact ? "compact" : "standard",
+        }).format(value);
+      }
+
+      function formatNumber(value, compact = true) {
+        if (!Number.isFinite(value)) return "-";
+        return new Intl.NumberFormat("en-US", {
+          maximumFractionDigits: 2,
+          notation: compact ? "compact" : "standard",
+        }).format(value);
+      }
+
+      function percentClass(value) {
+        return value < 0 ? "change negative" : "change";
+      }
+
+      function Sparkline({ prices, compact }) {
+        const points = Array.isArray(prices) && prices.length > 1 ? prices : [0, 1];
+        const min = Math.min(...points);
+        const max = Math.max(...points);
+        const range = max - min || 1;
+        const width = compact ? 128 : 420;
+        const height = compact ? 44 : 90;
+        const path = points
+          .map((price, index) => {
+            const x = (index / (points.length - 1)) * width;
+            const y = height - ((price - min) / range) * (height - 8) - 4;
+            return `${index === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`;
+          })
+          .join(" ");
+
+        return el(
+          "svg",
+          { className: compact ? "mini-spark" : "spark", viewBox: `0 0 ${width} ${height}`, role: "img" },
+          el("path", {
+            d: path,
+            fill: "none",
+            stroke: points[points.length - 1] >= points[0] ? "#54d88f" : "#ff6b6b",
+            strokeWidth: compact ? 2.2 : 3,
+            strokeLinecap: "round",
+          })
+        );
+      }
+
+      function App() {
+        const [coins, setCoins] = useState(fallbackCoins);
+        const [selectedId, setSelectedId] = useState("bitcoin");
+        const [query, setQuery] = useState("");
+        const [sortBy, setSortBy] = useState("market_cap_desc");
+        const [filter, setFilter] = useState("all");
+        const [page, setPage] = useState(1);
+        const [loading, setLoading] = useState(false);
+        const [lastUpdated, setLastUpdated] = useState(null);
+        const [countdown, setCountdown] = useState(refreshSeconds);
+        const [watchlist, setWatchlist] = useState(() => JSON.parse(localStorage.getItem("watchlist") || "[]"));
+        const [holdings, setHoldings] = useState(() => JSON.parse(localStorage.getItem("holdings") || "{}"));
+        const [tradeCoin, setTradeCoin] = useState("bitcoin");
+        const [tradeAmount, setTradeAmount] = useState("");
+        const [convertFrom, setConvertFrom] = useState("bitcoin");
+        const [convertTo, setConvertTo] = useState("ethereum");
+        const [convertAmount, setConvertAmount] = useState("1");
+        const [wallet, setWallet] = useState({ address: "", chainId: "", available: false, connecting: false });
+        const [modal, setModal] = useState(null);
+        const [toast, setToast] = useState("");
+
+        const selectedCoin = coins.find((coin) => coin.id === selectedId) || coins[0];
+
+        async function loadMarkets(nextPage = 1, append = false) {
+          setLoading(true);
+          try {
+            const params = new URLSearchParams({
+              vs_currency: "usd",
+              order: sortBy,
+              per_page: "100",
+              page: String(nextPage),
+              sparkline: "true",
+              price_change_percentage: "1h,24h,7d",
+            });
+            const response = await fetch(`${apiBase}/coins/markets?${params}`);
+            if (!response.ok) throw new Error("Market data request failed");
+            const data = await response.json();
+            setCoins((current) => (append ? [...current, ...data.filter((coin) => !current.some((item) => item.id === coin.id))] : data));
+            setPage(nextPage);
+            setLastUpdated(new Date());
+            setCountdown(refreshSeconds);
+          } catch (error) {
+            setToast("Live API is unavailable right now, so cached sample data is shown.");
+          } finally {
+            setLoading(false);
+          }
+        }
+
+        useEffect(() => {
+          loadMarkets(1, false);
+        }, [sortBy]);
+
+        useEffect(() => {
+          const timer = setInterval(() => {
+            setCountdown((current) => {
+              if (current <= 1) {
+                loadMarkets(1, false);
+                return refreshSeconds;
+              }
+              return current - 1;
+            });
+          }, 1000);
+          return () => clearInterval(timer);
+        }, [sortBy]);
+
+        useEffect(() => {
+          localStorage.setItem("watchlist", JSON.stringify(watchlist));
+        }, [watchlist]);
+
+        useEffect(() => {
+          localStorage.setItem("holdings", JSON.stringify(holdings));
+        }, [holdings]);
+
+        useEffect(() => {
+          if (!toast) return undefined;
+          const timeout = setTimeout(() => setToast(""), 3800);
+          return () => clearTimeout(timeout);
+        }, [toast]);
+
+        useEffect(() => {
+          const provider = window.ethereum;
+          setWallet((current) => ({ ...current, available: Boolean(provider) }));
+          if (!provider) return undefined;
+
+          provider.request({ method: "eth_accounts" })
+            .then((accounts) => {
+              if (accounts?.[0]) setWallet((current) => ({ ...current, address: accounts[0] }));
+            })
+            .catch(() => {});
+
+          provider.request({ method: "eth_chainId" })
+            .then((chainId) => setWallet((current) => ({ ...current, chainId })))
+            .catch(() => {});
+
+          const handleAccounts = (accounts) => {
+            setWallet((current) => ({ ...current, address: accounts?.[0] || "" }));
+            setToast(accounts?.[0] ? "Wallet connected." : "Wallet disconnected.");
+          };
+          const handleChain = (chainId) => {
+            setWallet((current) => ({ ...current, chainId }));
+            setToast("Wallet network changed.");
+          };
+
+          provider.on?.("accountsChanged", handleAccounts);
+          provider.on?.("chainChanged", handleChain);
+
+          return () => {
+            provider.removeListener?.("accountsChanged", handleAccounts);
+            provider.removeListener?.("chainChanged", handleChain);
+          };
+        }, []);
+
+        const filteredCoins = useMemo(() => {
+          const normalized = query.trim().toLowerCase();
+          return coins.filter((coin) => {
+            const matchesQuery =
+              !normalized ||
+              coin.name.toLowerCase().includes(normalized) ||
+              coin.symbol.toLowerCase().includes(normalized);
+            const change = coin.price_change_percentage_24h || 0;
+            const matchesFilter =
+              filter === "all" ||
+              (filter === "gainers" && change > 0) ||
+              (filter === "losers" && change < 0) ||
+              (filter === "watchlist" && watchlist.includes(coin.id));
+            return matchesQuery && matchesFilter;
+          });
+        }, [coins, query, filter, watchlist]);
+
+        const marketStats = useMemo(() => {
+          const totalMarketCap = coins.reduce((sum, coin) => sum + (coin.market_cap || 0), 0);
+          const totalVolume = coins.reduce((sum, coin) => sum + (coin.total_volume || 0), 0);
+          const averageChange =
+            coins.reduce((sum, coin) => sum + (coin.price_change_percentage_24h || 0), 0) / Math.max(coins.length, 1);
+          return { totalMarketCap, totalVolume, averageChange };
+        }, [coins]);
+
+        const portfolio = useMemo(() => {
+          return Object.entries(holdings).reduce(
+            (summary, [coinId, amount]) => {
+              const coin = coins.find((item) => item.id === coinId);
+              if (!coin) return summary;
+              const value = Number(amount) * coin.current_price;
+              summary.total += value;
+              summary.items.push({ coin, amount: Number(amount), value });
+              return summary;
+            },
+            { total: 0, items: [] }
+          );
+        }, [holdings, coins]);
+
+        const converter = useMemo(() => {
+          const from = coins.find((coin) => coin.id === convertFrom);
+          const to = coins.find((coin) => coin.id === convertTo);
+          if (!from || !to) return 0;
+          return (Number(convertAmount) || 0) * (from.current_price / to.current_price);
+        }, [coins, convertFrom, convertTo, convertAmount]);
+
+        function toggleWatch(coinId) {
+          setWatchlist((current) =>
+            current.includes(coinId) ? current.filter((id) => id !== coinId) : [...current, coinId]
+          );
+        }
+
+        function addHolding() {
+          const amount = Number(tradeAmount);
+          if (!amount || amount <= 0) {
+            setToast("Enter a valid coin amount first.");
+            return;
+          }
+          setHoldings((current) => ({ ...current, [tradeCoin]: Number(current[tradeCoin] || 0) + amount }));
+          setTradeAmount("");
+          setToast("Portfolio updated.");
+        }
+
+        function removeHolding(coinId) {
+          setHoldings((current) => {
+            const next = { ...current };
+            delete next[coinId];
+            return next;
+          });
+        }
+
+        function startTrading() {
+          setModal("trade");
+          setTradeCoin(selectedCoin?.id || "bitcoin");
+        }
+
+        function shortAddress(address) {
+          if (!address) return "Connect Wallet";
+          return `${address.slice(0, 6)}...${address.slice(-4)}`;
+        }
+
+        function chainName(chainId) {
+          const chains = {
+            "0x1": "Ethereum",
+            "0x5": "Goerli",
+            "0xaa36a7": "Sepolia",
+            "0x89": "Polygon",
+            "0xa": "Optimism",
+            "0xa4b1": "Arbitrum",
+            "0x38": "BNB Chain",
+            "0xa86a": "Avalanche",
+            "0x2105": "Base",
+          };
+          return chains[chainId] || chainId || "Unknown network";
+        }
+
+        async function connectWallet() {
+          const provider = window.ethereum;
+          if (!provider) {
+            setWallet((current) => ({ ...current, available: false }));
+            setModal("wallet");
+            return;
+          }
+
+          setWallet((current) => ({ ...current, available: true, connecting: true }));
+          try {
+            const accounts = await provider.request({ method: "eth_requestAccounts" });
+            const chainId = await provider.request({ method: "eth_chainId" });
+            setWallet({ available: true, connecting: false, address: accounts?.[0] || "", chainId });
+            setToast("Wallet connected successfully.");
+          } catch (error) {
+            setWallet((current) => ({ ...current, connecting: false }));
+            setToast(error?.code === 4001 ? "Wallet connection was rejected." : "Could not connect wallet.");
+          }
+        }
+
+        function openWalletPanel() {
+          if (wallet.address) {
+            setModal("wallet");
+            return;
+          }
+          connectWallet();
+        }
+
+        function disconnectWallet() {
+          setWallet((current) => ({ ...current, address: "", chainId: "", connecting: false }));
+          setToast("Wallet disconnected from this dashboard.");
+        }
+
+        function selectCoin(coin) {
+          setSelectedId(coin.id);
+          setConvertFrom(coin.id);
+          document.getElementById("overview")?.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+
+        const coinOptions = coins.slice(0, 100).map((coin) =>
+          el("option", { key: coin.id, value: coin.id }, `${coin.name} (${coin.symbol.toUpperCase()})`)
+        );
+
+        return el(
+          "main",
+          { className: "app" },
+          el("style", null, styles),
+          el(
+            "div",
+            { className: "shell" },
+            el(
+              "nav",
+              { className: "nav" },
+              el(
+                "div",
+                { className: "brand" },
+                el("div", { className: "brand-mark" }, "CV"),
+                el("div", null, el("h1", null, "CryptoVault"), el("p", null, "Live market command center"))
+              ),
+              el(
+                "div",
+                { className: "nav-links" },
+                el("a", { href: "#overview" }, "Overview"),
+                el("a", { href: "#markets" }, "Markets"),
+                el("a", { href: "#portfolio" }, "Portfolio"),
+                el("a", { href: "#tools" }, "Tools")
+              ),
+              el(
+                "div",
+                { className: "nav-actions" },
+                el("button", { className: "secondary", onClick: () => loadMarkets(1, false), disabled: loading }, loading ? "Refreshing" : "Refresh"),
+                el("button", { onClick: openWalletPanel, disabled: wallet.connecting }, wallet.connecting ? "Connecting" : shortAddress(wallet.address))
+              )
+            ),
+
+            el(
+              "section",
+              { className: "hero", id: "overview" },
+              el(
+                "div",
+                { className: "hero-main" },
+                el(
+                  "div",
+                  null,
+                  el("p", { className: "eyebrow" }, "Real-time crypto intelligence"),
+                  el("h2", null, "Track every major coin with a trading desk that actually works."),
+                  el(
+                    "p",
+                    { className: "hero-copy" },
+                    "Live prices, auto-refreshing markets, watchlists, portfolio math, conversion tools, and coin-level trend charts all run directly in your browser."
+                  ),
+                  el(
+                    "div",
+                    { className: "hero-actions" },
+                    el("button", { onClick: startTrading }, "Start Trading"),
+                    el("button", { className: "secondary", onClick: () => document.getElementById("markets").scrollIntoView({ behavior: "smooth" }) }, "View Markets")
+                  )
+                ),
+                el(
+                  "div",
+                  { className: "hero-metrics" },
+                  el("div", { className: "metric" }, el("span", null, "Tracked Market Cap"), el("strong", null, formatCurrency(marketStats.totalMarketCap, true))),
+                  el("div", { className: "metric" }, el("span", null, "24h Volume"), el("strong", null, formatCurrency(marketStats.totalVolume, true))),
+                  el("div", { className: "metric" }, el("span", null, "Average 24h Move"), el("strong", { className: percentClass(marketStats.averageChange) }, `${marketStats.averageChange.toFixed(2)}%`))
+                )
+              ),
+              el(
+                "aside",
+                { className: "side-stack" },
+                selectedCoin &&
+                  el(
+                    "div",
+                    { className: "panel" },
+                    el(
+                      "div",
+                      { className: "panel-header" },
+                      el("div", null, el("p", { className: "eyebrow" }, "Selected asset"), el("h3", null, selectedCoin.name)),
+                      el("button", { className: "icon ghost", onClick: () => toggleWatch(selectedCoin.id), title: "Toggle watchlist" }, watchlist.includes(selectedCoin.id) ? "★" : "☆")
+                    ),
+                    el(
+                      "div",
+                      { className: "featured-coin" },
+                      el("img", { className: "coin-logo", src: selectedCoin.image, alt: selectedCoin.name }),
+                      el("div", null, el("strong", null, selectedCoin.symbol.toUpperCase()), el("div", { className: percentClass(selectedCoin.price_change_percentage_24h || 0) }, `${(selectedCoin.price_change_percentage_24h || 0).toFixed(2)}% 24h`))
+                    ),
+                    el("div", { className: "price-line" }, el("strong", null, formatCurrency(selectedCoin.current_price)), el("span", null, `ATH ${formatCurrency(selectedCoin.ath)}`)),
+                    el(Sparkline, { prices: selectedCoin.sparkline_in_7d?.price || [], compact: false })
+                  ),
+                el(
+                  "div",
+                  { className: "panel" },
+                  el("div", { className: "panel-header" }, el("div", null, el("p", { className: "eyebrow" }, "Quick signals"), el("h3", null, "Market pulse"))),
+                  el(
+                    "div",
+                    { className: "quick-grid" },
+                    el("div", { className: "quick-card" }, el("span", { className: "label" }, "Coins loaded"), el("strong", null, coins.length)),
+                    el("div", { className: "quick-card" }, el("span", { className: "label" }, "Watchlist"), el("strong", null, watchlist.length)),
+                    el("div", { className: "quick-card" }, el("span", { className: "label" }, "Portfolio value"), el("strong", null, formatCurrency(portfolio.total))),
+                    el("div", { className: "quick-card" }, el("span", { className: "label" }, "Next refresh"), el("strong", null, `${countdown}s`))
+                  )
+                )
+              )
+            ),
+
+            el(
+              "section",
+              { className: "section", id: "markets" },
+              el(
+                "div",
+                { className: "section-title" },
+                el("div", null, el("p", { className: "eyebrow" }, "Live markets"), el("h3", null, "Explore coins by market cap, movement, and watchlist")),
+                el("p", null, lastUpdated ? `Last updated ${lastUpdated.toLocaleTimeString()}` : "Loading live prices")
+              ),
+              el(
+                "div",
+                { className: "dashboard-grid" },
+                el(
+                  "div",
+                  { className: "market-card" },
+                  el(
+                    "div",
+                    { className: "toolbar" },
+                    el("input", { placeholder: "Search any loaded coin or symbol", value: query, onChange: (event) => setQuery(event.target.value) }),
+                    el("select", { value: sortBy, onChange: (event) => setSortBy(event.target.value) },
+                      el("option", { value: "market_cap_desc" }, "Market cap"),
+                      el("option", { value: "volume_desc" }, "Volume"),
+                      el("option", { value: "id_asc" }, "Name A-Z")
+                    ),
+                    el("select", { value: filter, onChange: (event) => setFilter(event.target.value) },
+                      el("option", { value: "all" }, "All coins"),
+                      el("option", { value: "gainers" }, "Gainers"),
+                      el("option", { value: "losers" }, "Losers"),
+                      el("option", { value: "watchlist" }, "Watchlist")
+                    ),
+                    el("button", { className: "secondary", onClick: () => { setQuery(""); setFilter("all"); } }, "Clear"),
+                    el("button", { onClick: () => loadMarkets(1, false), disabled: loading }, "Update")
+                  ),
+                  el(
+                    "div",
+                    { className: "tabs" },
+                    ["all", "gainers", "losers", "watchlist"].map((tab) =>
+                      el("button", { key: tab, className: filter === tab ? "active" : "secondary", onClick: () => setFilter(tab) }, tab[0].toUpperCase() + tab.slice(1))
+                    )
+                  ),
+                  el("div", { className: "status-row" }, el("span", null, `${filteredCoins.length} coins shown`), el("span", null, "Auto-refreshing every 60 seconds")),
+                  el(
+                    "div",
+                    { className: "table-wrap" },
+                    el(
+                      "table",
+                      { className: "table" },
+                      el("thead", null, el("tr", null, ["#", "Coin", "Price", "24h", "7d", "Market Cap", "Volume", "Trend", ""].map((heading) => el("th", { key: heading }, heading)))),
+                      el(
+                        "tbody",
+                        null,
+                        filteredCoins.map((coin, index) =>
+                          el(
+                            "tr",
+                            { key: coin.id },
+                            el("td", null, index + 1),
+                            el(
+                              "td",
+                              null,
+                              el(
+                                "button",
+                                { className: "ghost", onClick: () => selectCoin(coin) },
+                                el("span", { className: "coin-cell" }, el("img", { src: coin.image, alt: coin.name }), el("span", { className: "coin-name" }, el("h4", null, coin.name), el("span", null, coin.symbol)))
+                              )
+                            ),
+                            el("td", null, formatCurrency(coin.current_price)),
+                            el("td", { className: percentClass(coin.price_change_percentage_24h || 0) }, `${(coin.price_change_percentage_24h || 0).toFixed(2)}%`),
+                            el("td", { className: percentClass(coin.price_change_percentage_7d_in_currency || 0) }, `${(coin.price_change_percentage_7d_in_currency || 0).toFixed(2)}%`),
+                            el("td", null, formatCurrency(coin.market_cap, true)),
+                            el("td", null, formatCurrency(coin.total_volume, true)),
+                            el("td", null, el(Sparkline, { prices: coin.sparkline_in_7d?.price || [], compact: true })),
+                            el("td", null, el("button", { className: "icon ghost", onClick: () => toggleWatch(coin.id), title: "Toggle watchlist" }, watchlist.includes(coin.id) ? "★" : "☆"))
+                          )
+                        )
+                      )
+                    )
+                  ),
+                  el("div", { className: "table-footer" }, el("button", { className: "secondary", onClick: () => loadMarkets(page + 1, true), disabled: loading }, loading ? "Loading" : "Load 100 More Coins"))
+                ),
+                el(
+                  "aside",
+                  { className: "side-stack" },
+                  el(
+                    "div",
+                    { className: "panel", id: "portfolio" },
+                    el("div", { className: "panel-header" }, el("div", null, el("p", { className: "eyebrow" }, "Portfolio"), el("h3", null, formatCurrency(portfolio.total)))),
+                    portfolio.items.length
+                      ? el(
+                          "div",
+                          { className: "portfolio-list" },
+                          portfolio.items.map(({ coin, amount, value }) =>
+                            el("div", { className: "holding", key: coin.id }, el("div", null, el("strong", null, coin.name), el("small", null, `${formatNumber(amount, false)} ${coin.symbol.toUpperCase()}`)), el("div", null, el("strong", null, formatCurrency(value)), el("button", { className: "icon ghost", onClick: () => removeHolding(coin.id), title: "Remove holding" }, "×")))
+                          )
+                        )
+                      : el("p", { className: "empty" }, "No holdings yet. Use Start Trading or the trade panel to add coins to your local portfolio.")
+                  ),
+                  el(
+                    "div",
+                    { className: "panel" },
+                    el("div", { className: "panel-header" }, el("div", null, el("p", { className: "eyebrow" }, "Watchlist"), el("h3", null, "Saved assets"))),
+                    watchlist.length
+                      ? el(
+                          "div",
+                          { className: "watch-list" },
+                          watchlist.map((id) => {
+                            const coin = coins.find((item) => item.id === id);
+                            if (!coin) return null;
+                            return el("div", { className: "watch-item", key: id }, el("div", null, el("strong", null, coin.name), el("small", null, formatCurrency(coin.current_price))), el("span", { className: percentClass(coin.price_change_percentage_24h || 0) }, `${(coin.price_change_percentage_24h || 0).toFixed(2)}%`));
+                          })
+                        )
+                      : el("p", { className: "empty" }, "Tap the star on any coin to keep it here.")
+                  )
+                )
+              )
+            ),
+
+            el(
+              "section",
+              { className: "section dashboard-grid", id: "tools" },
+              el(
+                "div",
+                { className: "panel" },
+                el("div", { className: "panel-header" }, el("div", null, el("p", { className: "eyebrow" }, "Trade simulator"), el("h3", null, "Add coins to your local portfolio"))),
+                el("div", { className: "field-row" },
+                  el("select", { value: tradeCoin, onChange: (event) => setTradeCoin(event.target.value) }, coinOptions),
+                  el("input", { type: "number", min: "0", step: "0.0001", placeholder: "Amount", value: tradeAmount, onChange: (event) => setTradeAmount(event.target.value) }),
+                  el("button", { onClick: addHolding }, "Add Holding")
+                )
+              ),
+              el(
+                "div",
+                { className: "panel" },
+                el("div", { className: "panel-header" }, el("div", null, el("p", { className: "eyebrow" }, "Converter"), el("h3", null, "Coin calculator"))),
+                el("div", { className: "field-row" },
+                  el("input", { type: "number", min: "0", step: "0.0001", value: convertAmount, onChange: (event) => setConvertAmount(event.target.value) }),
+                  el("select", { value: convertFrom, onChange: (event) => setConvertFrom(event.target.value) }, coinOptions),
+                  el("select", { value: convertTo, onChange: (event) => setConvertTo(event.target.value) }, coinOptions)
+                ),
+                el("p", { className: "converter-result" }, `${formatNumber(Number(convertAmount) || 0, false)} ${coins.find((coin) => coin.id === convertFrom)?.symbol.toUpperCase() || ""} = ${formatNumber(converter, false)} ${coins.find((coin) => coin.id === convertTo)?.symbol.toUpperCase() || ""}`)
+              )
+            ),
+
+            el(
+              "section",
+              { className: "section" },
+              el(
+                "div",
+                { className: "panel" },
+                el("div", { className: "panel-header" }, el("div", null, el("p", { className: "eyebrow" }, "Risk desk"), el("h3", null, "Built-in trading discipline"))),
+                el("ul", { className: "risk-list" },
+                  el("li", null, "Portfolio and watchlist are stored locally in your browser only."),
+                  el("li", null, "Prices refresh from CoinGecko and may be delayed or rate-limited by the public API."),
+                  el("li", null, "The trade simulator records holdings for planning; it does not connect to an exchange or execute orders.")
+                )
+              )
+            )
+          ),
+
+          modal === "wallet" &&
+            el("div", { className: "modal-backdrop", onClick: () => setModal(null) },
+              el("div", { className: "modal", onClick: (event) => event.stopPropagation() },
+                el("h3", null, wallet.address ? "Wallet connected" : "Connect wallet"),
+                wallet.address
+                  ? el(
+                      "div",
+                      null,
+                      el("p", null, "Your wallet is connected to this dashboard. You can monitor balances locally and use your address as the account identity for the app."),
+                      el(
+                        "div",
+                        { className: "wallet-card" },
+                        el("span", { className: "label" }, "Account"),
+                        el("strong", null, shortAddress(wallet.address)),
+                        el("small", null, wallet.address)
+                      ),
+                      el(
+                        "div",
+                        { className: "wallet-card" },
+                        el("span", { className: "label" }, "Network"),
+                        el("strong", null, chainName(wallet.chainId)),
+                        el("small", null, wallet.chainId || "No chain reported")
+                      ),
+                      el(
+                        "div",
+                        { className: "card-actions" },
+                        el("button", { onClick: () => setModal(null) }, "Done"),
+                        el("button", { className: "secondary", onClick: disconnectWallet }, "Disconnect")
+                      )
+                    )
+                  : el(
+                      "div",
+                      null,
+                      el("p", null, wallet.available ? "Choose your browser wallet and approve the connection request." : "No injected wallet was detected. Install MetaMask, Coinbase Wallet, Rabby, or another EIP-1193 browser wallet, then reload this page."),
+                      el(
+                        "div",
+                        { className: "wallet-options" },
+                        el("button", { onClick: connectWallet, disabled: wallet.connecting || !wallet.available }, wallet.connecting ? "Connecting" : "Connect Browser Wallet"),
+                        el("a", { className: "wallet-link", href: "https://metamask.io/download/", target: "_blank", rel: "noreferrer" }, "Install MetaMask")
+                      ),
+                      el("div", { className: "card-actions" }, el("button", { className: "secondary", onClick: () => setModal(null) }, "Close"))
+                    )
+              )
+            ),
+
+          modal === "trade" &&
+            el("div", { className: "modal-backdrop", onClick: () => setModal(null) },
+              el("div", { className: "modal", onClick: (event) => event.stopPropagation() },
+                el("h3", null, "Start trading"),
+                el("p", null, "Add a simulated holding to your portfolio using live market prices."),
+                el("div", { className: "field-row" },
+                  el("select", { value: tradeCoin, onChange: (event) => setTradeCoin(event.target.value) }, coinOptions),
+                  el("input", { type: "number", min: "0", step: "0.0001", placeholder: "Amount", value: tradeAmount, onChange: (event) => setTradeAmount(event.target.value) })
+                ),
+                el("div", { className: "card-actions" }, el("button", { onClick: () => { addHolding(); setModal(null); } }, "Add Holding"), el("button", { className: "secondary", onClick: () => setModal(null) }, "Cancel"))
+              )
+            ),
+
+          toast && el("div", { className: "toast" }, toast)
+        );
+      }
+
+      ReactDOM.createRoot(document.getElementById("root")).render(el(App));
+    </script>
+  </body>
+</html>
