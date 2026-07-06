@@ -1,3 +1,4 @@
+<!-- LINE 754 EDIT AGAIN -->
 <!doctype html>
 <html lang="en">
   <head>
@@ -751,7 +752,7 @@
         const max = Math.max(...points);
         const range = max - min || 1;
         const width = compact ? 128 : 420;
-        const height = compact ? 44 : 90;
+        const height = compact ? 44 : 90;  // 44: 90 should be better but try this one first
         const path = points
           .map((price, index) => {
             const x = (index / (points.length - 1)) * width;
@@ -1254,6 +1255,7 @@
                   el("button", { onClick: addHolding }, "Add Holding")
                 )
               ),
+              
               el(
                 "div",
                 { className: "panel" },
