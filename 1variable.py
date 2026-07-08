@@ -18,7 +18,7 @@ e = 0.5
 
 f = d + e
 print(f) # sum of integer and float will give float value
-print(type(f)) # type of f is float bcz 
+print(type(f)) # type of f is float bcz both d and e are float
 
 
 g  = False # this is boolean data type

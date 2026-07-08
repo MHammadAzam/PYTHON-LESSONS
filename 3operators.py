@@ -43,4 +43,4 @@ z = 25/4
 print ( z ) # answer is 6.25
 
 z1 = 25//4
-print ( z1 ) # answer is 6, it rounds down the value to nearest integer
+print ( z1 ) # answer is 6, it rounds down the value to floor integer
