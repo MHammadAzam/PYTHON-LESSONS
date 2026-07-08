@@ -637,6 +637,14 @@
           white-space: nowrap;
         }
 
+        .danger {
+          border: 1px solid rgba(255, 107, 107, 0.24);
+          border-radius: 8px;
+          background: rgba(255, 107, 107, 0.08);
+          color: #ffb4b4 !important;
+          padding: 10px 12px;
+        }
+
         .wallet-options {
           display: grid;
           grid-template-columns: 1fr auto;
@@ -791,7 +799,7 @@
         const [convertFrom, setConvertFrom] = useState("bitcoin");
         const [convertTo, setConvertTo] = useState("ethereum");
         const [convertAmount, setConvertAmount] = useState("1");
-        const [wallet, setWallet] = useState({ address: "", chainId: "", available: false, connecting: false });
+        const [wallet, setWallet] = useState({ address: "", chainId: "", balance: "", available: false, connecting: false, providerName: "", error: "" });
         const [modal, setModal] = useState(null);
         const [toast, setToast] = useState("");
 
@@ -854,13 +862,16 @@
         }, [toast]);
 
         useEffect(() => {
-          const provider = window.ethereum;
-          setWallet((current) => ({ ...current, available: Boolean(provider) }));
+          const provider = getWalletProvider();
+          setWallet((current) => ({ ...current, available: Boolean(provider), providerName: walletProviderName(provider) }));
           if (!provider) return undefined;
 
           provider.request({ method: "eth_accounts" })
             .then((accounts) => {
-              if (accounts?.[0]) setWallet((current) => ({ ...current, address: accounts[0] }));
+              if (accounts?.[0]) {
+                setWallet((current) => ({ ...current, address: accounts[0] }));
+                refreshWalletDetails(accounts[0]);
+              }
             })
             .catch(() => {});
 
@@ -871,10 +882,15 @@
           const handleAccounts = (accounts) => {
             setWallet((current) => ({ ...current, address: accounts?.[0] || "" }));
             setToast(accounts?.[0] ? "Wallet connected." : "Wallet disconnected.");
+            if (accounts?.[0]) refreshWalletDetails(accounts[0]);
           };
           const handleChain = (chainId) => {
             setWallet((current) => ({ ...current, chainId }));
             setToast("Wallet network changed.");
+            setWallet((current) => {
+              if (current.address) refreshWalletDetails(current.address);
+              return current;
+            });
           };
 
           provider.on?.("accountsChanged", handleAccounts);
@@ -982,23 +998,87 @@
           return chains[chainId] || chainId || "Unknown network";
         }
 
+        function getWalletProvider() {
+          if (!window.ethereum) return null;
+          if (Array.isArray(window.ethereum.providers)) {
+            return window.ethereum.providers.find((provider) => provider.isMetaMask) || window.ethereum.providers[0];
+          }
+          return window.ethereum;
+        }
+
+        function walletProviderName(provider) {
+          if (!provider) return "";
+          if (provider.isMetaMask) return "MetaMask";
+          if (provider.isCoinbaseWallet) return "Coinbase Wallet";
+          if (provider.isRabby) return "Rabby";
+          if (provider.isTrust) return "Trust Wallet";
+          return "Browser Wallet";
+        }
+
+        function formatEther(hexBalance) {
+          if (!hexBalance) return "";
+          try {
+            const wei = BigInt(hexBalance);
+            const whole = wei / 1000000000000000000n;
+            const fraction = (wei % 1000000000000000000n).toString().padStart(18, "0").slice(0, 5);
+            return `${whole}.${fraction} ETH`;
+          } catch (error) {
+            return "";
+          }
+        }
+
+        async function refreshWalletDetails(address) {
+          const provider = getWalletProvider();
+          if (!provider || !address) return;
+          try {
+            const [chainId, balanceHex] = await Promise.all([
+              provider.request({ method: "eth_chainId" }),
+              provider.request({ method: "eth_getBalance", params: [address, "latest"] }),
+            ]);
+            setWallet((current) => ({
+              ...current,
+              chainId,
+              balance: formatEther(balanceHex),
+              available: true,
+              providerName: walletProviderName(provider),
+              error: "",
+            }));
+          } catch (error) {
+            setWallet((current) => ({ ...current, error: "Connected, but balance details could not be loaded." }));
+          }
+        }
+
         async function connectWallet() {
-          const provider = window.ethereum;
+          const provider = getWalletProvider();
           if (!provider) {
-            setWallet((current) => ({ ...current, available: false }));
+            setWallet((current) => ({
+              ...current,
+              available: false,
+              connecting: false,
+              error: "No browser wallet was found. Install MetaMask, Coinbase Wallet, Rabby, or another EIP-1193 wallet and refresh this page.",
+            }));
+            setToast("No browser wallet was found.");
             setModal("wallet");
             return;
           }
 
-          setWallet((current) => ({ ...current, available: true, connecting: true }));
+          setWallet((current) => ({ ...current, available: true, connecting: true, providerName: walletProviderName(provider), error: "" }));
           try {
             const accounts = await provider.request({ method: "eth_requestAccounts" });
+            const address = accounts?.[0] || "";
             const chainId = await provider.request({ method: "eth_chainId" });
-            setWallet({ available: true, connecting: false, address: accounts?.[0] || "", chainId });
-            setToast("Wallet connected successfully.");
+            let balance = "";
+            if (address) {
+              balance = formatEther(await provider.request({ method: "eth_getBalance", params: [address, "latest"] }));
+            }
+            setWallet({ available: true, connecting: false, address, chainId, balance, providerName: walletProviderName(provider), error: "" });
+            setToast(address ? "Wallet connected successfully." : "Wallet did not return an account.");
+            setModal("wallet");
           } catch (error) {
-            setWallet((current) => ({ ...current, connecting: false }));
-            setToast(error?.code === 4001 ? "Wallet connection was rejected." : "Could not connect wallet.");
+            const message = error?.code === 4001 ? "Wallet connection was rejected." : "Could not connect wallet. Unlock your wallet and try again.";
+            setWallet((current) => ({ ...current, connecting: false, error: message }));
+            setToast(message);
+            setModal("wallet");
           }
         }
 
@@ -1011,8 +1091,36 @@
         }
 
         function disconnectWallet() {
-          setWallet((current) => ({ ...current, address: "", chainId: "", connecting: false }));
+          setWallet((current) => ({ ...current, address: "", chainId: "", balance: "", connecting: false, error: "" }));
           setToast("Wallet disconnected from this dashboard.");
+        }
+
+        async function copyWalletAddress() {
+          if (!wallet.address) return;
+          try {
+            await navigator.clipboard.writeText(wallet.address);
+            setToast("Wallet address copied.");
+          } catch (error) {
+            setToast("Copy failed. Select the address text manually.");
+          }
+        }
+
+        async function switchToEthereum() {
+          const provider = getWalletProvider();
+          if (!provider) {
+            connectWallet();
+            return;
+          }
+          try {
+            await provider.request({ method: "wallet_switchEthereumChain", params: [{ chainId: "0x1" }] });
+            setWallet((current) => ({ ...current, chainId: "0x1", error: "" }));
+            setToast("Switched to Ethereum mainnet.");
+            if (wallet.address) refreshWalletDetails(wallet.address);
+          } catch (error) {
+            const message = error?.code === 4902 ? "Ethereum mainnet is not available in this wallet." : "Network switch was cancelled or failed.";
+            setWallet((current) => ({ ...current, error: message }));
+            setToast(message);
+          }
         }
 
         function selectCoin(coin) {
@@ -1303,25 +1411,37 @@
                       el(
                         "div",
                         { className: "wallet-card" },
+                        el("span", { className: "label" }, "Provider"),
+                        el("strong", null, wallet.providerName || "Browser Wallet"),
+                        el("small", null, wallet.balance ? `Balance: ${wallet.balance}` : "Balance loading or unavailable")
+                      ),
+                      el(
+                        "div",
+                        { className: "wallet-card" },
                         el("span", { className: "label" }, "Network"),
                         el("strong", null, chainName(wallet.chainId)),
                         el("small", null, wallet.chainId || "No chain reported")
                       ),
+                      wallet.error && el("p", { className: "danger" }, wallet.error),
                       el(
                         "div",
                         { className: "card-actions" },
                         el("button", { onClick: () => setModal(null) }, "Done"),
+                        el("button", { className: "secondary", onClick: copyWalletAddress }, "Copy Address"),
+                        el("button", { className: "secondary", onClick: () => refreshWalletDetails(wallet.address) }, "Refresh Balance"),
+                        el("button", { className: "secondary", onClick: switchToEthereum }, "Use Ethereum"),
                         el("button", { className: "secondary", onClick: disconnectWallet }, "Disconnect")
                       )
                     )
                   : el(
                       "div",
                       null,
-                      el("p", null, wallet.available ? "Choose your browser wallet and approve the connection request." : "No injected wallet was detected. Install MetaMask, Coinbase Wallet, Rabby, or another EIP-1193 browser wallet, then reload this page."),
+                      el("p", null, wallet.available ? `Choose ${wallet.providerName || "your browser wallet"} and approve the connection request.` : "No injected wallet was detected. The button will still guide you, but you need MetaMask, Coinbase Wallet, Rabby, or another EIP-1193 browser wallet installed."),
+                      wallet.error && el("p", { className: "danger" }, wallet.error),
                       el(
                         "div",
                         { className: "wallet-options" },
-                        el("button", { onClick: connectWallet, disabled: wallet.connecting || !wallet.available }, wallet.connecting ? "Connecting" : "Connect Browser Wallet"),
+                        el("button", { onClick: connectWallet, disabled: wallet.connecting }, wallet.connecting ? "Connecting" : "Connect Browser Wallet"),
                         el("a", { className: "wallet-link", href: "https://metamask.io/download/", target: "_blank", rel: "noreferrer" }, "Install MetaMask")
                       ),
                       el("div", { className: "card-actions" }, el("button", { className: "secondary", onClick: () => setModal(null) }, "Close"))
