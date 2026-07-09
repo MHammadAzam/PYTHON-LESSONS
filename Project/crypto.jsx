@@ -292,8 +292,7 @@ export default function CryptoApp() {
       ),
       el(
         "div",
-        { className: "coin-list" },
-        ...coins.map((coin) =>
+        { className: "coin-list" }, ...coins.map((coin) =>
           el(
             "article",
             { className: "coin-card", key: coin.symbol },
