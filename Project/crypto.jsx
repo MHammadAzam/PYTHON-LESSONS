@@ -189,7 +189,6 @@ const styles = `
     .crypto-app {
       padding: 14px;
     }
-
     .navbar {
       align-items: flex-start;
       flex-direction: column;
