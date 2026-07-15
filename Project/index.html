@@ -865,6 +865,7 @@
           const provider = getWalletProvider();
           setWallet((current) => ({ ...current, available: Boolean(provider), providerName: walletProviderName(provider) }));
           if (!provider) return undefined;
+          // This code is written in a very well sequenced way
 
           provider.request({ method: "eth_accounts" })
             .then((accounts) => {
