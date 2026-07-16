@@ -265,6 +265,7 @@ export default function CryptoApp() {
         el("strong", null, "$124,870.45"),
         el("small", null, "+12.8% this month")
       ),
+
       el(
         "article",
         null,
